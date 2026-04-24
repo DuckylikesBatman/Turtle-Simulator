@@ -10,25 +10,25 @@ body {
 
 /* ── App shell ─────────────────────────────────────────── */
 #app {
-  max-width: 1220px;
+  max-width: 1240px;
   margin: 0 auto;
-  padding: 24px 20px 48px;
+  padding: 22px 18px 48px;
 }
 
 /* ── Header ────────────────────────────────────────────── */
 header {
   text-align: center;
-  margin-bottom: 26px;
+  margin-bottom: 24px;
 }
 
 header h1 {
-  font-size: 20px;
+  font-size: 19px;
   color: #6ef2b2;
   letter-spacing: 1.5px;
   margin-bottom: 12px;
 }
 
-.tagline {
+.pipeline-bar {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -37,17 +37,17 @@ header h1 {
 }
 
 .stage-pill {
-  padding: 4px 12px;
+  padding: 4px 13px;
   border-radius: 20px;
   font-size: 11px;
   font-weight: bold;
-  letter-spacing: 0.6px;
+  letter-spacing: 0.5px;
 }
-.stage-pill.s1 { background: #0d2a3a; color: #7ab8f5; border: 1px solid #1a4a6a; }
-.stage-pill.s2 { background: #1a2a0d; color: #7af57a; border: 1px solid #2a5a1a; }
-.stage-pill.s3 { background: #2a1a0d; color: #f5c07a; border: 1px solid #5a3a1a; }
+.stage-pill.s1 { background:#0d2a3a; color:#7ab8f5; border:1px solid #1a4a6a; }
+.stage-pill.s2 { background:#1a2a0d; color:#7af57a; border:1px solid #2a5a1a; }
+.stage-pill.s3 { background:#2a1a0d; color:#f5c07a; border:1px solid #5a3a1a; }
 
-.arrow { color: #2a4a38; font-size: 16px; }
+.arr { color: #2a4a38; font-size: 16px; }
 
 /* ── Two-column layout ─────────────────────────────────── */
 #main {
@@ -57,16 +57,14 @@ header h1 {
   align-items: start;
 }
 
-@media (max-width: 800px) {
-  #main { grid-template-columns: 1fr; }
-}
+@media (max-width: 820px) { #main { grid-template-columns: 1fr; } }
 
 /* ── Card ──────────────────────────────────────────────── */
 .card {
   background: #121826;
   border-radius: 10px;
   padding: 14px 16px;
-  box-shadow: 0 0 14px rgba(0, 255, 150, 0.04);
+  box-shadow: 0 0 14px rgba(0,255,150,0.04);
 }
 
 .card-head {
@@ -91,58 +89,60 @@ header h1 {
   letter-spacing: 0;
 }
 
-/* ── Stage badge ───────────────────────────────────────── */
+/* ── Stage cards ───────────────────────────────────────── */
+.stage-head { display: flex; align-items: center; gap: 8px; }
+
 .stage-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  font-size: 11px;
-  font-weight: bold;
-  flex-shrink: 0;
+  display:inline-flex; align-items:center; justify-content:center;
+  width:20px; height:20px; border-radius:50%;
+  font-size:11px; font-weight:bold; flex-shrink:0;
 }
-.stage-badge.s1 { background: #1a4a6a; color: #7ab8f5; }
-.stage-badge.s2 { background: #2a5a1a; color: #7af57a; }
-.stage-badge.s3 { background: #5a3a1a; color: #f5c07a; }
+.stage-badge.s1 { background:#1a4a6a; color:#7ab8f5; }
+.stage-badge.s2 { background:#2a5a1a; color:#7af57a; }
+.stage-badge.s3 { background:#5a3a1a; color:#f5c07a; }
 
-.stage-card { border-left: 2px solid #1a3a2a; }
-.stage-card:has(.s1) { border-color: #1a4a6a; }
-.stage-card:has(.s2) { border-color: #2a5a1a; }
-.stage-card:has(.s3) { border-color: #5a3a1a; }
+.s1-card { border-left: 2px solid #1a4a6a; }
+.s2-card { border-left: 2px solid #2a5a1a; }
+.s3-card { border-left: 2px solid #5a3a1a; }
 
-/* ── Examples dropdown ─────────────────────────────────── */
-.example-row { display: flex; align-items: center; gap: 7px; }
+/* ── AST view toggle ───────────────────────────────────── */
+.ast-toggle { display:flex; gap:4px; }
 
-.ex-label { font-size: 10px; color: #3a6450; white-space: nowrap; }
-
-#exampleSelect {
-  background: #0b1220;
-  color: #6ef2b2;
+.tog {
+  padding: 3px 9px;
   border: 1px solid #1a3a2a;
-  padding: 4px 7px;
-  border-radius: 5px;
+  background: #0d1820;
+  color: #3a6450;
+  border-radius: 4px;
   font-family: "Courier New", monospace;
   font-size: 10px;
   cursor: pointer;
-  max-width: 200px;
+  font-weight: normal;
+}
+.tog:hover  { color: #6ef2b2; border-color: #2a5a3a; }
+.tog.active { background: #1a3328; color: #6ef2b2; border-color: #2a5a3a; }
+
+/* ── Examples dropdown ─────────────────────────────────── */
+.example-row { display:flex; align-items:center; gap:7px; }
+.ex-label    { font-size:10px; color:#3a6450; white-space:nowrap; }
+
+#exampleSelect {
+  background: #0b1220; color: #6ef2b2;
+  border: 1px solid #1a3a2a;
+  padding: 4px 7px; border-radius: 5px;
+  font-family: "Courier New", monospace;
+  font-size: 10px; cursor: pointer; max-width: 200px;
 }
 #exampleSelect:focus { outline: 1px solid #00c77a; }
 
 /* ── Textarea ──────────────────────────────────────────── */
 textarea {
-  width: 100%;
-  height: 96px;
-  background: #0b1220;
-  color: #00ff99;
+  width: 100%; height: 96px;
+  background: #0b1220; color: #00ff99;
   border: 1px solid #1a3a2a;
-  padding: 9px 11px;
-  border-radius: 7px;
+  padding: 9px 11px; border-radius: 7px;
   font-family: "Courier New", monospace;
-  font-size: 13px;
-  resize: vertical;
-  margin-bottom: 10px;
+  font-size: 13px; resize: vertical; margin-bottom: 10px;
 }
 textarea:focus { outline: 1px solid #00c77a; }
 
@@ -153,55 +153,40 @@ textarea:focus { outline: 1px solid #00c77a; }
   border-radius: 6px;
   overflow: hidden;
 }
-
 .grammar-box summary {
-  padding: 6px 10px;
-  font-size: 10px;
-  color: #4a8a60;
-  cursor: pointer;
-  background: #0d1f14;
-  user-select: none;
+  padding: 6px 10px; font-size: 10px; color: #4a8a60;
+  cursor: pointer; background: #0d1f14; user-select: none;
 }
 .grammar-box summary:hover { color: #6ef2b2; }
-
 .grammar {
-  padding: 10px 12px;
-  font-size: 11px;
-  line-height: 1.9;
-  color: #8dc9a5;
-  white-space: pre;
-  background: #0b1820;
+  padding: 10px 12px; font-size: 11px; line-height: 1.9;
+  color: #8dc9a5; white-space: pre; background: #0b1820;
+  overflow-x: auto;
 }
 
-/* ── Hint text ─────────────────────────────────────────── */
-.hint {
-  font-size: 11px;
-  color: #3a6450;
-  margin-bottom: 10px;
-  line-height: 1.7;
+/* ── Hint ──────────────────────────────────────────────── */
+.hint { font-size:11px; color:#3a6450; margin-bottom:10px; line-height:1.7; }
+
+kbd {
+  display: inline-block; padding: 1px 5px;
+  background: #0f1e14; border: 1px solid #1a3a2a;
+  border-radius: 3px; font-size: 10px; color: #6ef2b2;
 }
 
 code {
-  background: #0b1e16;
-  color: #6ef2b2;
-  padding: 1px 5px;
-  border-radius: 3px;
-  font-size: 11px;
+  background: #0b1e16; color: #6ef2b2;
+  padding: 1px 5px; border-radius: 3px; font-size: 11px;
 }
 
 /* ── Buttons ───────────────────────────────────────────── */
-.btn-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.btn-row { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px; }
 
 button {
-  padding: 6px 12px;
-  border: none;
-  background: #00c77a;
-  color: #000;
-  border-radius: 6px;
-  cursor: pointer;
+  padding: 6px 12px; border: none;
+  background: #00c77a; color: #000;
+  border-radius: 6px; cursor: pointer;
   font-family: "Courier New", monospace;
-  font-size: 12px;
-  font-weight: bold;
+  font-size: 12px; font-weight: bold;
   letter-spacing: 0.3px;
   transition: background 0.12s;
   white-space: nowrap;
@@ -212,46 +197,54 @@ button.sec:hover      { background: #274d3c; }
 button:disabled       { opacity: 0.35; cursor: default; }
 button:disabled:hover { background: #1a3328; }
 
-/* ── Step status line ──────────────────────────────────── */
+/* ── Step status ───────────────────────────────────────── */
 .stmt-label {
-  font-size: 11px;
-  color: #f5d85e;
-  min-height: 16px;
-  word-break: break-all;
-  line-height: 1.5;
+  font-size: 11px; color: #f5d85e;
+  min-height: 16px; line-height: 1.5;
+  word-break: break-word;
 }
 
 /* ── Output column ─────────────────────────────────────── */
-#output-col {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+#output-col { display:flex; flex-direction:column; gap:12px; }
+
+/* ── Error display ─────────────────────────────────────── */
+.err-block  { margin-bottom: 6px; }
+.err-block + .err-block { border-top: 1px solid #2a1010; padding-top: 6px; }
+
+.err-msg { color: #ff7070; font-size: 13px; word-break: break-word; }
+
+.err-ptr {
+  font-size: 11px; color: #ff9090;
+  white-space: pre; overflow-x: auto;
+  margin-top: 5px; padding: 6px 8px;
+  background: #1a0a0a; border-radius: 5px;
+  border-left: 2px solid #ff4444;
+  line-height: 1.6;
 }
 
-/* ── Result ────────────────────────────────────────────── */
-.error-out {
-  color: #ff7070;
-  font-size: 13px;
-  word-break: break-word;
-  min-height: 0;
+/* ── Console output (print) ────────────────────────────── */
+.print-header {
+  font-size: 10px; color: #4a8a60;
+  text-transform: uppercase; letter-spacing: 0.8px;
+  margin-bottom: 4px; margin-top: 6px;
+}
+.print-line {
+  font-size: 13px; color: #7af5f5;
+  padding: 2px 0; border-bottom: 1px solid #0d2020;
 }
 
+/* ── Result line ───────────────────────────────────────── */
 .result-out {
-  font-size: 15px;
-  color: #00ff99;
-  letter-spacing: 0.5px;
-  white-space: pre;
-  min-height: 22px;
-  margin-top: 4px;
+  font-size: 15px; color: #00ff99;
+  letter-spacing: 0.5px; white-space: pre;
+  min-height: 22px; margin-top: 6px;
 }
 
 /* ── Symbol table ──────────────────────────────────────── */
 #varsOut { min-height: 20px; }
 
 .var-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  display: flex; align-items: center; gap: 8px;
   padding: 4px 0;
   border-bottom: 1px solid #0d1f14;
   font-size: 13px;
@@ -261,62 +254,59 @@ button:disabled:hover { background: #1a3328; }
 .var-val  { color: #00ff99; }
 
 /* ── Token badges ──────────────────────────────────────── */
-#tokenOut {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  min-height: 20px;
-}
+#tokenOut { display:flex; flex-wrap:wrap; gap:5px; min-height:20px; }
 
 .tok {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 3px 7px;
-  border-radius: 5px;
-  font-size: 10px;
-  background: #1a2f3d;
-  color: #8fd4a8;
-  white-space: nowrap;
-  line-height: 1.3;
+  display: inline-flex; flex-direction: column; align-items: center;
+  padding: 3px 7px; border-radius: 5px;
+  font-size: 10px; background: #1a2f3d; color: #8fd4a8;
+  white-space: nowrap; line-height: 1.3;
 }
 .tok-val { color: #4a8a60; font-size: 9px; }
 .tok-pos { color: #284a38; font-size: 8px; }
 
-/* Keyword operators */
-.tok-add, .tok-sub, .tok-mult, .tok-div {
-  background: #0d2f1e; color: #4ef5a2;
-}
-/* Numbers */
-.tok-number  { background: #1a2040; color: #7ab8f5; }
-/* Identifiers */
-.tok-ident   { background: #201a10; color: #f5d85e; }
-/* Punctuation */
-.tok-equals, .tok-semi   { background: #251a10; color: #f5b85e; }
-.tok-lparen, .tok-rparen { background: #2a2510; color: #f5d85e; }
+.tok-add, .tok-sub, .tok-mult,
+.tok-div, .tok-mod              { background:#0d2f1e; color:#4ef5a2; }
+.tok-print                      { background:#0a2020; color:#7af5f5; }
+.tok-number                     { background:#1a2040; color:#7ab8f5; }
+.tok-ident                      { background:#201a10; color:#f5d85e; }
+.tok-equals, .tok-semi          { background:#251a10; color:#f5b85e; }
+.tok-lparen, .tok-rparen        { background:#2a2510; color:#f5d85e; }
 
-/* ── AST output ────────────────────────────────────────── */
+/* ── Text AST ──────────────────────────────────────────── */
 #astOut {
-  font-size: 12px;
-  color: #a8d8bc;
-  white-space: pre;
-  overflow-x: auto;
-  max-height: 200px;
-  overflow-y: auto;
-  min-height: 20px;
-  line-height: 1.65;
+  font-size: 12px; color: #a8d8bc;
+  white-space: pre; overflow-x: auto;
+  max-height: 200px; overflow-y: auto;
+  min-height: 20px; line-height: 1.65;
 }
+
+/* ── Visual AST (SVG tree) ─────────────────────────────── */
+.ast-svg { display: block; }
+
+.ast-edge {
+  stroke: #2a4a3a; stroke-width: 1.5;
+}
+
+.ast-node rect {
+  stroke-width: 1;
+}
+.ast-node text { fill: #d1f7e0; }
+
+.anprog rect { fill: #1a2f3d; stroke: #2a5a7a; }
+.anass  rect { fill: #1a2a10; stroke: #3a6020; }
+.anprint rect{ fill: #0a2020; stroke: #1a5050; }
+.anbin  rect { fill: #2a1a30; stroke: #5a3a7a; }
+.anun   rect { fill: #2a1a10; stroke: #7a4a20; }
+.anid   rect { fill: #20180a; stroke: #6a5010; }
+.annum  rect { fill: #0d1a30; stroke: #1a3a6a; }
 
 /* ── Evaluation trace ──────────────────────────────────── */
 #traceOut {
-  font-size: 12px;
-  color: #c8e8d8;
-  white-space: pre;
-  overflow-x: auto;
-  max-height: 220px;
-  overflow-y: auto;
-  min-height: 20px;
-  line-height: 1.75;
+  font-size: 12px; color: #c8e8d8;
+  white-space: pre; overflow-x: auto;
+  max-height: 230px; overflow-y: auto;
+  min-height: 20px; line-height: 1.75;
 }
 
 /* ── Shared ────────────────────────────────────────────── */

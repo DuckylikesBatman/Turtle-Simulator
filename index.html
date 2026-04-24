@@ -7,26 +7,24 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
 <div id="app">
 
   <header>
     <h1>Mathematical Expression Interpreter</h1>
-    <p class="tagline">
-      <span class="stage-pill s1">1 Lexical Analysis</span>
-      <span class="arrow">&#8594;</span>
-      <span class="stage-pill s2">2 Syntactic Analysis</span>
-      <span class="arrow">&#8594;</span>
-      <span class="stage-pill s3">3 Evaluation</span>
-    </p>
+    <div class="pipeline-bar">
+      <span class="stage-pill s1">1 &nbsp;Lexical Analysis</span>
+      <span class="arr">&#8594;</span>
+      <span class="stage-pill s2">2 &nbsp;Syntactic Analysis</span>
+      <span class="arr">&#8594;</span>
+      <span class="stage-pill s3">3 &nbsp;Evaluation</span>
+    </div>
   </header>
 
   <div id="main">
 
-    <!-- ═══ LEFT – Input ═══════════════════════════════ -->
+    <!-- ═══ LEFT – Input ══════════════════════════════════ -->
     <section class="card" id="input-card">
 
-      <!-- Examples -->
       <div class="card-head">
         <span class="card-title">Input</span>
         <div class="example-row">
@@ -40,78 +38,98 @@
       <textarea id="code" spellcheck="false"
         placeholder="a=10; b=5; c= a div b;"></textarea>
 
-      <!-- Grammar reference -->
+      <!-- Formal grammar reference -->
       <details class="grammar-box">
         <summary>Language grammar (EBNF)</summary>
-        <pre class="grammar">
-program   &rarr; statement* EOF
-statement &rarr; IDENT '=' expr ';'
-expr      &rarr; term   ( ('add' | 'sub') term   )*
-term      &rarr; factor ( ('mult'| 'div') factor )*
-factor    &rarr; NUMBER | IDENT | '(' expr ')' | '-' factor</pre>
+        <pre class="grammar">program   &#8594; statement* EOF
+statement &#8594; IDENT  '=' expr ';'
+          | 'print' '(' expr ')' ';'
+expr      &#8594; term   ( ('add' | 'sub')         term   )*
+term      &#8594; factor ( ('mult'| 'div' | 'mod') factor )*
+factor    &#8594; NUMBER | IDENT | '(' expr ')' | '-' factor
+
+System symbols (reserved): add  sub  mult  div  mod  print</pre>
       </details>
 
       <p class="hint">
-        Ctrl+Enter to run &nbsp;|&nbsp;
-        Keyword operators: <code>add</code> <code>sub</code> <code>mult</code> <code>div</code> &nbsp;|&nbsp;
-        Each statement ends with <code>;</code>
+        <kbd>Ctrl+Enter</kbd> to run &nbsp;|&nbsp;
+        Operators: <code>add</code> <code>sub</code> <code>mult</code>
+        <code>div</code> <code>mod</code> &nbsp;|&nbsp;
+        End each statement with <code>;</code>
       </p>
 
-      <!-- Main buttons -->
+      <!-- Buttons -->
       <div class="btn-row">
         <button onclick="run()">&#9654; Run</button>
-        <button class="sec" id="stepBtn" onclick="doStep()">&#9197; Step</button>
+        <button class="sec" id="stepBtn"     onclick="doStep()">&#9197; Step</button>
         <button class="sec" id="resetStepBtn" onclick="resetStep()">&#8635; Reset</button>
         <button class="sec" onclick="showTokens()">Tokens</button>
         <button class="sec" onclick="showAST()">AST</button>
         <button class="sec" onclick="clearOutput()">Clear</button>
       </div>
 
-      <!-- Step mode status line -->
+      <!-- Step mode status -->
       <div id="stmtLabel" class="stmt-label"></div>
 
     </section>
 
-    <!-- ═══ RIGHT – Pipeline output ══════════════════ -->
+    <!-- ═══ RIGHT – Pipeline output ═══════════════════════ -->
     <div id="output-col">
 
       <!-- Stage 1: Lexical Analysis -->
-      <section class="card stage-card">
+      <section class="card stage-card s1-card">
         <div class="card-head">
-          <span class="stage-badge s1">1</span>
-          <span class="card-title">Lexical Analysis
-            <span class="card-sub">— token stream</span>
-          </span>
+          <div class="stage-head">
+            <span class="stage-badge s1">1</span>
+            <span class="card-title">Lexical Analysis
+              <span class="card-sub">— token stream</span>
+            </span>
+          </div>
         </div>
-        <div id="tokenOut"><em class="muted">Click "Tokens", "Run", or use Step mode</em></div>
+        <div id="tokenOut">
+          <em class="muted">Click "Tokens", "Run", or use Step mode</em>
+        </div>
       </section>
 
       <!-- Stage 2: Syntactic Analysis -->
-      <section class="card stage-card">
+      <section class="card stage-card s2-card">
         <div class="card-head">
-          <span class="stage-badge s2">2</span>
-          <span class="card-title">Syntactic Analysis
-            <span class="card-sub">— abstract syntax tree</span>
-          </span>
+          <div class="stage-head">
+            <span class="stage-badge s2">2</span>
+            <span class="card-title">Syntactic Analysis
+              <span class="card-sub">— abstract syntax tree</span>
+            </span>
+          </div>
+          <!-- Text / Visual toggle -->
+          <div class="ast-toggle">
+            <button class="tog active" id="astTextBtn" onclick="switchAST('text')">Text</button>
+            <button class="tog"        id="astTreeBtn" onclick="switchAST('tree')">Visual</button>
+          </div>
         </div>
         <pre id="astOut"><em class="muted">Click "AST", "Run", or use Step mode</em></pre>
+        <div id="astTreeOut" style="display:none;overflow-x:auto;"></div>
       </section>
 
-      <!-- Stage 3: Evaluation -->
-      <section class="card stage-card">
+      <!-- Stage 3: Evaluation Trace -->
+      <section class="card stage-card s3-card">
         <div class="card-head">
-          <span class="stage-badge s3">3</span>
-          <span class="card-title">Evaluation Trace
-            <span class="card-sub">— tree-walking execution</span>
-          </span>
+          <div class="stage-head">
+            <span class="stage-badge s3">3</span>
+            <span class="card-title">Evaluation Trace
+              <span class="card-sub">— tree-walking execution</span>
+            </span>
+          </div>
         </div>
         <pre id="traceOut"><em class="muted">Click "Run" or use Step mode to see trace</em></pre>
       </section>
 
-      <!-- Result + error -->
+      <!-- Result, errors, console output -->
       <section class="card">
-        <div class="card-head"><span class="card-title">Result</span></div>
-        <div id="errOut" class="error-out"></div>
+        <div class="card-head">
+          <span class="card-title">Result</span>
+        </div>
+        <div id="errOut"></div>
+        <div id="printOut"></div>
         <div id="resultOut" class="result-out"></div>
       </section>
 
@@ -134,6 +152,5 @@ factor    &rarr; NUMBER | IDENT | '(' expr ')' | '-' factor</pre>
 <script src="js/parser.js"></script>
 <script src="js/evaluator.js"></script>
 <script src="js/main.js"></script>
-
 </body>
 </html>
