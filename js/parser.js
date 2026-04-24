@@ -1,35 +1,36 @@
 "use strict";
 // Depends on: TT, Token  (lexer.js)
 
-// ── AST Node classes ─────────────────────────────────────
-class NumberNode  { constructor(v)       { this.type='Number';  this.value=v; } }
-class IdentNode   { constructor(name)    { this.type='Ident';   this.name=name; } }
-class BinOpNode   { constructor(l,op,r)  { this.type='BinOp';   this.left=l; this.op=op; this.right=r; } }
-class UnaryNode   { constructor(op,opnd) { this.type='Unary';   this.op=op; this.operand=opnd; } }
-class SetNode     { constructor(nm,val)  { this.type='Set';     this.name=nm; this.val=val; } }
-class CommandNode { constructor(cmd,arg) { this.type='Command'; this.cmd=cmd; this.arg=arg; } }
-class SetPosNode  { constructor(x,y)     { this.type='SetPos';  this.x=x; this.y=y; } }
-class RepeatNode  { constructor(n,body)  { this.type='Repeat';  this.count=n; this.body=body; } }
-class ProgramNode { constructor(stmts)   { this.type='Program'; this.stmts=stmts; } }
+// ── AST Node classes ──────────────────────────────────────
+class NumberNode  { constructor(v)      { this.type = 'Number'; this.value = v; } }
+class IdentNode   { constructor(name)   { this.type = 'Ident';  this.name = name; } }
+class UnaryNode   { constructor(op, e)  { this.type = 'Unary';  this.op = op; this.operand = e; } }
+class BinOpNode   { constructor(l,op,r) { this.type = 'BinOp';  this.left = l; this.op = op; this.right = r; } }
+class AssignNode  { constructor(nm,e)   { this.type = 'Assign'; this.name = nm; this.expr = e; } }
+class ProgramNode { constructor(stmts)  { this.type = 'Program'; this.stmts = stmts; } }
 
-// ──────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────
 //  Parser  –  Syntactic Analysis
 //  Consumes the token list and builds an Abstract Syntax Tree.
 //
-//  Grammar:
-//    program   → statement*
-//    statement → SET IDENT '=' expr
-//              | SETPOS '(' expr ',' expr ')'
-//              | moveCmd '(' expr ')' | noArgCmd
-//              | REPEAT '(' expr ')' '[' statement* ']'
-//    expr      → term   ( ('+' | '-') term   )*
-//    term      → factor ( ('*' | '/' | '%') factor )*
-//    factor    → NUMBER | IDENT | '(' expr ')' | ('+' | '-') factor
-// ──────────────────────────────────────────────────────────
+//  Grammar (EBNF):
+//    program   → statement* EOF
+//    statement → IDENT '=' expr ';'
+//    expr      → term   ( ('add' | 'sub') term   )*
+//    term      → factor ( ('mult' | 'div') factor )*
+//    factor    → NUMBER | IDENT | '(' expr ')' | '-' factor
+//
+//  Operator precedence (low → high):
+//    add / sub  <  mult / div  <  unary minus  <  atom
+//
+//  System-symbol check: if ADD/SUB/MULT/DIV appear in the
+//  variable-name position, the error "Error X is system
+//  symbol" is thrown before consuming the token.
+// ─────────────────────────────────────────────────────────
 class Parser {
   constructor(tokens) {
-    this.tokens = tokens.filter(t => t.type !== TT.NEWLINE);
-    this.pos = 0;
+    this.tokens = tokens;
+    this.pos    = 0;
   }
 
   get cur() { return this.tokens[this.pos]; }
@@ -37,11 +38,11 @@ class Parser {
   consume(expected) {
     const t = this.tokens[this.pos++];
     if (expected && t.type !== expected)
-      throw new Error(`Line ${t.line}: Expected '${expected}' but got '${t.type}' ('${t.value}')`);
+      throw new Error(`Expected '${expected}' but got '${t.type}' ('${t.value}')`);
     return t;
   }
 
-  // factor → NUMBER | IDENT | '(' expr ')' | unary
+  // factor → NUMBER | IDENT | '(' expr ')' | '-' factor
   factor() {
     const t = this.cur;
     if (t.type === TT.NUMBER) { this.consume(); return new NumberNode(t.value); }
@@ -52,81 +53,47 @@ class Parser {
       this.consume(TT.RPAREN);
       return n;
     }
-    if (t.type === TT.MINUS) { this.consume(); return new UnaryNode('-', this.factor()); }
-    if (t.type === TT.PLUS)  { this.consume(); return new UnaryNode('+', this.factor()); }
-    throw new Error(`Line ${t.line}: Expected a number, variable, or '(' — got '${t.type}' ('${t.value}')`);
+    // Unary minus: allows negative literals and negated variables
+    if (t.type === TT.SUB) {
+      this.consume();
+      return new UnaryNode('-', this.factor());
+    }
+    throw new Error(`Expected a number, variable, or '(' — got '${t.value || t.type}'`);
   }
 
-  // term → factor ( ('*' | '/' | '%') factor )*
+  // term → factor ( ('mult' | 'div') factor )*
   term() {
     let n = this.factor();
-    while ([TT.STAR, TT.SLASH, TT.PERCENT].includes(this.cur.type)) {
+    while (this.cur.type === TT.MULT || this.cur.type === TT.DIV) {
       const op = this.consume().value;
       n = new BinOpNode(n, op, this.factor());
     }
     return n;
   }
 
-  // expr → term ( ('+' | '-') term )*
+  // expr → term ( ('add' | 'sub') term )*
   expr() {
     let n = this.term();
-    while (this.cur.type === TT.PLUS || this.cur.type === TT.MINUS) {
+    while (this.cur.type === TT.ADD || this.cur.type === TT.SUB) {
       const op = this.consume().value;
       n = new BinOpNode(n, op, this.term());
     }
     return n;
   }
 
+  // statement → IDENT '=' expr ';'
   statement() {
     const t = this.cur;
-
-    // Variable assignment: SET name = expr
-    if (t.type === TT.SET) {
-      this.consume();
-      const nameToken = this.consume(TT.IDENT);
-      this.consume(TT.EQUALS);
-      return new SetNode(nameToken.value, this.expr());
+    // Reject keyword operators used as variable names
+    if (t.type === TT.ADD || t.type === TT.SUB ||
+        t.type === TT.MULT || t.type === TT.DIV) {
+      throw new Error(`Error ${t.value} is system symbol`);
     }
-
-    // Absolute positioning: SETPOS(x, y)
-    if (t.type === TT.SETPOS) {
-      this.consume();
-      this.consume(TT.LPAREN);
-      const x = this.expr();
-      this.consume(TT.COMMA);
-      const y = this.expr();
-      this.consume(TT.RPAREN);
-      return new SetPosNode(x, y);
-    }
-
-    const moveCmds = [TT.FORWARD, TT.BACKWARD, TT.LEFT, TT.RIGHT, TT.PENCOLOR];
-    if (moveCmds.includes(t.type)) {
-      this.consume();
-      this.consume(TT.LPAREN);
-      const arg = this.expr();
-      this.consume(TT.RPAREN);
-      return new CommandNode(t.type, arg);
-    }
-
-    if (t.type === TT.PENUP || t.type === TT.PENDOWN || t.type === TT.RESET) {
-      this.consume();
-      return new CommandNode(t.type, null);
-    }
-
-    if (t.type === TT.REPEAT) {
-      this.consume();
-      this.consume(TT.LPAREN);
-      const cnt = this.expr();
-      this.consume(TT.RPAREN);
-      this.consume(TT.LBRACKET);
-      const body = [];
-      while (this.cur.type !== TT.RBRACKET && this.cur.type !== TT.EOF)
-        body.push(this.statement());
-      this.consume(TT.RBRACKET);
-      return new RepeatNode(cnt, body);
-    }
-
-    throw new Error(`Line ${t.line}: Unknown command: '${t.value}' (${t.type})`);
+    const nameToken = this.consume(TT.IDENT);
+    this.consume(TT.EQUALS);
+    const e = this.expr();
+    this.consume(TT.SEMI);
+    return new AssignNode(nameToken.value, e);
   }
 
   parse() {
@@ -136,28 +103,40 @@ class Parser {
   }
 }
 
-// ── AST pretty-printer (used by Show AST button) ─────────
+// ── AST → source string (for step mode re-tokenization) ──
+function nodeToSrc(node) {
+  switch (node.type) {
+    case 'Assign': return `${node.name} = ${exprToSrc(node.expr)};`;
+    default:       return exprToSrc(node);
+  }
+}
+
+function exprToSrc(node) {
+  switch (node.type) {
+    case 'Number': return String(node.value);
+    case 'Ident':  return node.name;
+    case 'Unary':  return `-(${exprToSrc(node.operand)})`;
+    case 'BinOp':  return `(${exprToSrc(node.left)} ${node.op} ${exprToSrc(node.right)})`;
+    default:       return '?';
+  }
+}
+
+// ── AST pretty-printer (used by "AST" button) ────────────
 function prettyAST(node, depth = 0) {
   const p = '  '.repeat(depth);
   switch (node.type) {
     case 'Program':
-      return `Program[\n${node.stmts.map(s => p+'  '+prettyAST(s,depth+1)).join('\n')}\n${p}]`;
+      return `Program[\n${node.stmts.map(s => p + '  ' + prettyAST(s, depth+1)).join('\n')}\n${p}]`;
     case 'Number':
       return `Number(${node.value})`;
     case 'Ident':
       return `Ident(${node.name})`;
-    case 'Set':
-      return `Set ${node.name} =\n${p}  └ ${prettyAST(node.val, depth+1)}`;
-    case 'BinOp':
-      return `BinOp(${node.op})\n${p}  ├ ${prettyAST(node.left,depth+1)}\n${p}  └ ${prettyAST(node.right,depth+1)}`;
     case 'Unary':
-      return `Unary(${node.op})\n${p}  └ ${prettyAST(node.operand,depth+1)}`;
-    case 'Command':
-      return `Command(${node.cmd})` + (node.arg ? `\n${p}  └ ${prettyAST(node.arg,depth+1)}` : '');
-    case 'SetPos':
-      return `SetPos\n${p}  ├ x: ${prettyAST(node.x,depth+1)}\n${p}  └ y: ${prettyAST(node.y,depth+1)}`;
-    case 'Repeat':
-      return `Repeat\n${p}  count: ${prettyAST(node.count,depth+1)}\n${p}  body:\n${node.body.map(s=>p+'    '+prettyAST(s,depth+2)).join('\n')}`;
+      return `Unary(${node.op})\n${p}  └ ${prettyAST(node.operand, depth+1)}`;
+    case 'Assign':
+      return `Assign(${node.name})\n${p}  └ ${prettyAST(node.expr, depth+1)}`;
+    case 'BinOp':
+      return `BinOp(${node.op})\n${p}  ├ ${prettyAST(node.left, depth+1)}\n${p}  └ ${prettyAST(node.right, depth+1)}`;
     default:
       return JSON.stringify(node);
   }

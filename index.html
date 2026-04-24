@@ -2,168 +2,138 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Turtle Interpreter Simulator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mathematical Expression Interpreter</title>
   <link rel="stylesheet" href="style.css">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/sql-wasm.js"></script>
 </head>
 <body>
 
-<!-- ═══════════════ LEFT – Canvas ═══════════════════════ -->
-<div id="left">
+<div id="app">
 
-  <div id="canvasWrap">
-    <canvas id="canvas" width="620" height="480"></canvas>
-    <p class="hint">↑↓←→ or WASD to move &nbsp;|&nbsp; 45° turns &nbsp;|&nbsp; R to reset</p>
-  </div>
+  <header>
+    <h1>Mathematical Expression Interpreter</h1>
+    <p class="tagline">
+      <span class="stage-pill s1">1 Lexical Analysis</span>
+      <span class="arrow">&#8594;</span>
+      <span class="stage-pill s2">2 Syntactic Analysis</span>
+      <span class="arrow">&#8594;</span>
+      <span class="stage-pill s3">3 Evaluation</span>
+    </p>
+  </header>
 
-  <!-- ── Start Screen ─────────────────────────────────── -->
-  <div id="startOverlay" class="overlay">
-    <div class="overlay-box">
-      <div class="big-icon">🐢</div>
-      <h1>Turtle Simulator</h1>
-      <p class="sub">Navigate the turtle to the <span class="star">★</span> goal</p>
-      <ul class="key-list">
-        <li><kbd>↑ W</kbd> Move forward 30px</li>
-        <li><kbd>↓ S</kbd> Move backward 30px</li>
-        <li><kbd>← A</kbd> Turn left 45°</li>
-        <li><kbd>→ D</kbd> Turn right 45°</li>
-        <li><kbd>R</kbd> Reset position</li>
-      </ul>
-      <p class="sub">…or write code in the interpreter panel →</p>
-      <button class="start-btn" onclick="startGame()">▶ Start Game</button>
-    </div>
-  </div>
+  <div id="main">
 
-  <!-- ── Win Screen ───────────────────────────────────── -->
-  <div id="winOverlay" class="overlay hidden">
-    <div class="overlay-box win-box">
-      <div class="big-icon">⭐</div>
-      <h1>Goal Reac hed!</h1>
-      <div id="winStats" class="win-stats"></div>
-      <button class="start-btn" onclick="playAgain()">▶ Play Again</button>
-    </div>
-  </div>
+    <!-- ═══ LEFT – Input ═══════════════════════════════ -->
+    <section class="card" id="input-card">
 
-</div>
+      <!-- Examples -->
+      <div class="card-head">
+        <span class="card-title">Input</span>
+        <div class="example-row">
+          <label class="ex-label">Examples:</label>
+          <select id="exampleSelect">
+            <option value="">— load example —</option>
+          </select>
+        </div>
+      </div>
 
-<!-- ═══════════════ RIGHT – Panels ══════════════════════ -->
-<div id="right">
+      <textarea id="code" spellcheck="false"
+        placeholder="a=10; b=5; c= a div b;"></textarea>
 
-  <!-- Turtle state -->
-  <div class="panel">
-    <h3>Turtle State</h3>
-    <div id="status"></div>
-  </div>
+      <!-- Grammar reference -->
+      <details class="grammar-box">
+        <summary>Language grammar (EBNF)</summary>
+        <pre class="grammar">
+program   &rarr; statement* EOF
+statement &rarr; IDENT '=' expr ';'
+expr      &rarr; term   ( ('add' | 'sub') term   )*
+term      &rarr; factor ( ('mult'| 'div') factor )*
+factor    &rarr; NUMBER | IDENT | '(' expr ')' | '-' factor</pre>
+      </details>
 
-  <!-- Expression evaluator -->
-  <div class="panel">
-    <h3>Expression Evaluator</h3>
-    <p class="panel-hint">Supports <code>+ - * / % ( )</code> and defined variables</p>
-    <div class="expr-row">
-      <input id="exprInput" type="text" placeholder="(5 + 3) * 2.5 / (8 - 4)" spellcheck="false" />
-      <button onclick="evalExpression()">Eval</button>
-    </div>
-    <div id="exprResult"></div>
-  </div>
+      <p class="hint">
+        Ctrl+Enter to run &nbsp;|&nbsp;
+        Keyword operators: <code>add</code> <code>sub</code> <code>mult</code> <code>div</code> &nbsp;|&nbsp;
+        Each statement ends with <code>;</code>
+      </p>
 
-  <!-- Turtle interpreter -->
-  <div class="panel">
-    <h3>Turtle Interpreter</h3>
+      <!-- Main buttons -->
+      <div class="btn-row">
+        <button onclick="run()">&#9654; Run</button>
+        <button class="sec" id="stepBtn" onclick="doStep()">&#9197; Step</button>
+        <button class="sec" id="resetStepBtn" onclick="resetStep()">&#8635; Reset</button>
+        <button class="sec" onclick="showTokens()">Tokens</button>
+        <button class="sec" onclick="showAST()">AST</button>
+        <button class="sec" onclick="clearOutput()">Clear</button>
+      </div>
 
-    <!-- Examples dropdown -->
-    <div class="example-row">
-      <label class="ex-label">Examples:</label>
-      <select id="exampleSelect">
-        <option value="">— load a program —</option>
-        <option value="default">Default</option>
-        <option value="square">Square (variable)</option>
-        <option value="triangle">Triangle</option>
-        <option value="star">5-pointed Star</option>
-        <option value="spiral">Growing Spiral</option>
-        <option value="rainbow">Rainbow Square</option>
-        <option value="polygon">Regular Polygon</option>
-        <option value="modulo">Modulo Demo</option>
-      </select>
-    </div>
+      <!-- Step mode status line -->
+      <div id="stmtLabel" class="stmt-label"></div>
 
-    <textarea id="code" spellcheck="false">FORWARD(100)
-RIGHT(90)
-FORWARD(50 + 50)
-LEFT(45 * 2)
-REPEAT(4)[
-  FORWARD(60)
-  RIGHT(90)
-]</textarea>
+    </section>
 
-    <!-- Speed slider -->
-    <div class="speed-row">
-      <span class="speed-lbl">Speed</span>
-      <input type="range" id="speed" min="1" max="10" value="6">
-      <span id="speedLabel" class="speed-val">Normal</span>
-    </div>
+    <!-- ═══ RIGHT – Pipeline output ══════════════════ -->
+    <div id="output-col">
 
-    <div class="btn-row">
-      <button onclick="run()">▶ Run</button>
-      <button class="sec" onclick="showTokens()">Tokens</button>
-      <button class="sec" onclick="showAST()">AST</button>
-    </div>
-    <div id="errOut"></div>
-  </div>
+      <!-- Stage 1: Lexical Analysis -->
+      <section class="card stage-card">
+        <div class="card-head">
+          <span class="stage-badge s1">1</span>
+          <span class="card-title">Lexical Analysis
+            <span class="card-sub">— token stream</span>
+          </span>
+        </div>
+        <div id="tokenOut"><em class="muted">Click "Tokens", "Run", or use Step mode</em></div>
+      </section>
 
-  <!-- Variables panel – live symbol table -->
-  <div class="panel">
-    <h3>Variables &nbsp;<span class="panel-sub">(symbol table)</span></h3>
-    <div id="varsOut"><em class="muted">No variables defined</em></div>
-  </div>
+      <!-- Stage 2: Syntactic Analysis -->
+      <section class="card stage-card">
+        <div class="card-head">
+          <span class="stage-badge s2">2</span>
+          <span class="card-title">Syntactic Analysis
+            <span class="card-sub">— abstract syntax tree</span>
+          </span>
+        </div>
+        <pre id="astOut"><em class="muted">Click "AST", "Run", or use Step mode</em></pre>
+      </section>
 
-  <!-- Lexical analysis output -->
-  <div class="panel">
-    <h3>Lexical Analysis – Tokens</h3>
-    <div id="tokenOut"><em class="muted">Click "Tokens" to see output</em></div>
-  </div>
+      <!-- Stage 3: Evaluation -->
+      <section class="card stage-card">
+        <div class="card-head">
+          <span class="stage-badge s3">3</span>
+          <span class="card-title">Evaluation Trace
+            <span class="card-sub">— tree-walking execution</span>
+          </span>
+        </div>
+        <pre id="traceOut"><em class="muted">Click "Run" or use Step mode to see trace</em></pre>
+      </section>
 
-  <!-- Syntactic analysis output -->
-  <div class="panel">
-    <h3>Syntactic Analysis – AST</h3>
-    <pre id="astOut"><em class="muted">Click "AST" to see output</em></pre>
-  </div>
+      <!-- Result + error -->
+      <section class="card">
+        <div class="card-head"><span class="card-title">Result</span></div>
+        <div id="errOut" class="error-out"></div>
+        <div id="resultOut" class="result-out"></div>
+      </section>
 
-  <!-- Move log -->
-  <div class="panel">
-    <h3>Move Log</h3>
-    <div id="log" class="log"></div>
-  </div>
+      <!-- Symbol Table -->
+      <section class="card">
+        <div class="card-head">
+          <span class="card-title">Symbol Table
+            <span class="card-sub">— variable store</span>
+          </span>
+        </div>
+        <div id="varsOut"><em class="muted">No variables</em></div>
+      </section>
 
-  <!-- SQL panel -->
-  <div class="panel">
-    <h3>SQL Query</h3>
-    <div class="sql-examples">
-      <span class="sql-hint">Try: </span>
-      <button class="sql-chip" onclick="setSql('SELECT * FROM moves ORDER BY id DESC LIMIT 10;')">Last 10 moves</button>
-      <button class="sql-chip" onclick="setSql('SELECT action, COUNT(*) as total FROM moves GROUP BY action ORDER BY total DESC;')">Move counts</button>
-      <button class="sql-chip" onclick="setSql('SELECT * FROM sessions;')">Sessions</button>
-    </div>
-    <textarea id="sql" spellcheck="false">SELECT * FROM moves ORDER BY id DESC LIMIT 10;</textarea>
-    <div class="btn-row">
-      <button onclick="runSQL()">Run SQL</button>
-    </div>
-    <div id="sqlOut"></div>
-  </div>
+    </div><!-- /output-col -->
+  </div><!-- /main -->
 
-</div>
+</div><!-- /app -->
 
 <script src="js/lexer.js"></script>
 <script src="js/parser.js"></script>
 <script src="js/evaluator.js"></script>
-<script src="js/turtle.js"></script>
-<script src="js/database.js"></script>
 <script src="js/main.js"></script>
-<script>
-  function setSql(q) {
-    document.getElementById('sql').value = q;
-    runSQL();
-  }
-</script>
 
 </body>
 </html>
