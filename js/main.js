@@ -1,5 +1,5 @@
 "use strict";
-// Depends on: lexer.js, parser.js, evaluator.js
+// Depends on: lexer.js, parser.js, evaluator.js, optimizer.js
 
 // ── Examples ──────────────────────────────────────────────
 const EXAMPLES = [
@@ -7,14 +7,26 @@ const EXAMPLES = [
     code:  'a=10; b=5; c= a div b;' },
   { label: 'Grouped expressions',
     code:  'a=4; b=3; c=8; res= (a add b) sub (c div a);' },
-  { label: 'All five operators',
+  { label: 'All five arithmetic operators',
     code:  'x=10; y=3; s= x add y; d= x sub y; p= x mult y; q= x div y; r= x mod y;' },
+  { label: 'Power operator (pow)',
+    code:  'base=2; exp=10; result= base pow exp; sq= 5 pow 2;' },
+  { label: 'Built-in functions',
+    code:  'a= sqrt(144); b= abs(-7); c= floor(3.9); d= ceil(3.1);' },
   { label: 'print( ) output',
     code:  'a=7; b=2; print(a mod b); print(a mult b);' },
   { label: 'Floating point',
     code:  'pi=3.14; r=5.0; area= pi mult (r mult r);' },
   { label: 'Unary minus',
     code:  'a=10; neg= -a; b= neg add 3;' },
+  { label: 'Comparisons (gt, lt, eq)',
+    code:  'x=10; y=5; big= x gt y; small= x lt y; same= x eq y;' },
+  { label: 'if statement',
+    code:  'score=85;\nif (score gt 59) {\n  print(score);\n  grade= score div 10;\n}' },
+  { label: 'Comments (#)',
+    code:  '# compute area of a circle\npi=3.14159; r=6;\narea= pi mult (r mult r); # pi*r^2\nprint(area);' },
+  { label: 'Constant folding demo',
+    code:  '# these sub-expressions are all literals — the optimizer pre-computes them\na= (3 add 4) mult 2;   # optimizer: (3+4)=7 then 7*2=14\nb= sqrt(9) add 1;      # optimizer: sqrt(9)=3 then 3+1=4\nc= 2 pow 8;            # optimizer: 256' },
   { label: 'Error: variable not declared',
     code:  'aa=4; b=5; da=3; ans= bb div aa;' },
   { label: 'Error: divide by zero',
@@ -49,14 +61,13 @@ function renderTokens(tokens) {
   }).join('');
 }
 
-// ── Error display with source pointer ────────────────────
+// ── Error display with source pointer ─────────────────────
 function showErrors(errors, src) {
   if (!errors.length) return;
   const lines = src.split('\n');
   document.getElementById('errOut').innerHTML = errors.map(e => {
     let html = `<div class="err-msg">${escHtml(e.message)}</div>`;
     if (e.col !== undefined) {
-      // Find which line the col falls on
       let remaining = e.col, lineIdx = 0, lineStart = 0;
       for (let i = 0; i < lines.length; i++) {
         if (remaining <= lines[i].length) { lineIdx = i; break; }
@@ -74,7 +85,7 @@ function showErrors(errors, src) {
 
 // ── Panel helpers ─────────────────────────────────────────
 function updateVarsPanel(env) {
-  const el = document.getElementById('varsOut');
+  const el   = document.getElementById('varsOut');
   const keys = Object.keys(env);
   if (!keys.length) { el.innerHTML = '<em class="muted">No variables</em>'; return; }
   el.innerHTML = keys.map(k =>
@@ -101,6 +112,29 @@ function showPrints(prints) {
     prints.map(v => `<div class="print-line">&gt;&nbsp;${escHtml(v)}</div>`).join('');
 }
 
+function showOptimizer(original, optimized, foldCount) {
+  const summary    = document.getElementById('optSummary');
+  const beforeEl   = document.getElementById('optBefore');
+  const afterEl    = document.getElementById('optAfter');
+  const beforeBtn  = document.getElementById('optBeforeBtn');
+  const afterBtn   = document.getElementById('optAfterBtn');
+
+  if (foldCount === 0) {
+    summary.textContent     = 'No constant sub-expressions found — AST unchanged.';
+    beforeEl.style.display  = 'none';
+    afterEl.style.display   = 'none';
+    beforeBtn.style.display = 'none';
+    afterBtn.style.display  = 'none';
+  } else {
+    summary.textContent     = `${foldCount} constant sub-expression${foldCount > 1 ? 's' : ''} folded.`;
+    beforeBtn.style.display = '';
+    afterBtn.style.display  = '';
+    beforeEl.textContent    = prettyAST(original);
+    afterEl.textContent     = prettyAST(optimized);
+    switchOpt(_optMode);
+  }
+}
+
 function clearOutput() {
   document.getElementById('errOut').innerHTML      = '';
   document.getElementById('printOut').innerHTML    = '';
@@ -110,8 +144,18 @@ function clearOutput() {
   document.getElementById('astOut').textContent    = '';
   document.getElementById('astTreeOut').innerHTML  = '';
   document.getElementById('traceOut').textContent  = '';
-  document.getElementById('varsOut').innerHTML     = '<em class="muted">No variables</em>';
-  document.getElementById('stmtLabel').textContent = '';
+  document.getElementById('varsOut').innerHTML      = '<em class="muted">No variables</em>';
+  document.getElementById('optSummary').textContent = '';
+  document.getElementById('optBefore').textContent   = '';
+  document.getElementById('optAfter').textContent    = '';
+  document.getElementById('optBefore').style.display  = 'none';
+  document.getElementById('optAfter').style.display   = 'none';
+  document.getElementById('optBeforeBtn').style.display = '';
+  document.getElementById('optAfterBtn').style.display  = '';
+  document.getElementById('optBeforeBtn').classList.remove('active');
+  document.getElementById('optAfterBtn').classList.add('active');
+  _optMode = 'after';
+  document.getElementById('stmtLabel').textContent  = '';
 }
 
 // ═════════════════════════════════════════════════════════
@@ -124,6 +168,8 @@ function _astChildren(n) {
     case 'Print':   return [n.expr];
     case 'BinOp':   return [n.left, n.right];
     case 'Unary':   return [n.operand];
+    case 'Builtin': return [n.arg];
+    case 'If':      return [n.cond, ...n.body];
     default:        return [];
   }
 }
@@ -136,6 +182,8 @@ function _astLabel(n) {
     case 'Print':   s = 'print'; break;
     case 'BinOp':   s = n.op; break;
     case 'Unary':   s = 'neg (−)'; break;
+    case 'Builtin': s = n.fn; break;
+    case 'If':      s = 'if'; break;
     case 'Ident':   s = n.name; break;
     case 'Number':  s = String(n.value); break;
     default:        s = n.type; break;
@@ -145,8 +193,9 @@ function _astLabel(n) {
 
 function _astClass(n) {
   const map = {
-    Program:'anprog', Assign:'anass', Print:'anprint',
-    BinOp:'anbin', Unary:'anun', Ident:'anid', Number:'annum',
+    Program:'anprog', Assign:'anass',  Print:'anprint',
+    BinOp:'anbin',    Unary:'anun',    Ident:'anid',
+    Number:'annum',   Builtin:'anblt', If:'anif',
   };
   return map[n.type] || 'anoth';
 }
@@ -154,7 +203,6 @@ function _astClass(n) {
 function buildASTSVG(root) {
   const NW = 84, NH = 34, HGAP = 22, VGAP = 56, PAD = 28;
 
-  // Measure subtree widths (bottom-up)
   function measure(n) {
     const ch = _astChildren(n);
     if (!ch.length) { n._w = NW; return NW; }
@@ -163,7 +211,6 @@ function buildASTSVG(root) {
     return n._w;
   }
 
-  // Assign (x, y) centre positions (top-down)
   function place(n, cx, y) {
     n._x = cx; n._y = y;
     const ch = _astChildren(n);
@@ -206,7 +253,7 @@ function buildASTSVG(root) {
 
 // AST view toggle (text ↔ visual)
 let _astMode = 'text';
-let _lastAST = null;
+let _lastAST  = null;
 
 function switchAST(mode) {
   _astMode = mode;
@@ -225,6 +272,16 @@ function _displayAST(ast) {
     document.getElementById('astTreeOut').innerHTML = buildASTSVG(ast);
 }
 
+// ── Optimizer view toggle (before ↔ after) ────────────────
+let _optMode = 'after';
+function switchOpt(mode) {
+  _optMode = mode;
+  document.getElementById('optBeforeBtn').classList.toggle('active', mode === 'before');
+  document.getElementById('optAfterBtn').classList.toggle('active',  mode === 'after');
+  document.getElementById('optBefore').style.display = mode === 'before' ? '' : 'none';
+  document.getElementById('optAfter').style.display  = mode === 'after'  ? '' : 'none';
+}
+
 // ═════════════════════════════════════════════════════════
 //  RUN MODE  –  execute everything at once
 // ═════════════════════════════════════════════════════════
@@ -234,24 +291,32 @@ function run() {
   const src = document.getElementById('code').value.trim();
   if (!src) return;
 
+  // Stage 1: Lex
   let tokens;
   try { tokens = new Lexer(src).tokenize(); }
   catch (e) { showErrors([e], src); return; }
+  renderTokens(tokens.filter(t => t.type !== TT.EOF));
 
+  // Stage 2: Parse
   const ast = new Parser(tokens).parse();
-  const ev  = new Evaluator();
-  ev.eval(ast);
+  _displayAST(ast);
+
+  // Stage 3: Optimize
+  const opt    = new Optimizer();
+  const optAst = opt.fold(ast);
+  showOptimizer(ast, optAst, opt.foldCount);
+
+  // Stage 4: Evaluate optimized AST
+  const ev = new Evaluator();
+  ev.eval(optAst);
 
   const allErrors = [...ast.parseErrors, ...ev.errors];
-
-  renderTokens(tokens.filter(t => t.type !== TT.EOF));
-  _displayAST(ast);
   document.getElementById('traceOut').textContent = ev.trace.join('\n');
-
   if (allErrors.length) showErrors(allErrors, src);
   showPrints(ev.prints);
   showResult(ev.env);
   updateVarsPanel(ev.env);
+  dbLogRun(src, Object.keys(ev.env).length, allErrors.length > 0);
 }
 
 function showTokens() {
@@ -267,8 +332,12 @@ function showAST() {
   const src = document.getElementById('code').value.trim();
   if (!src) return;
   try {
-    const ast = new Parser(new Lexer(src).tokenize()).parse();
+    const tokens = new Lexer(src).tokenize();
+    const ast    = new Parser(tokens).parse();
     _displayAST(ast);
+    const opt    = new Optimizer();
+    const optAst = opt.fold(ast);
+    showOptimizer(ast, optAst, opt.foldCount);
     if (ast.parseErrors.length) showErrors(ast.parseErrors, src);
   } catch (e) { showErrors([e], src); }
 }
@@ -280,7 +349,6 @@ let _stepStmts = [], _stepIdx = 0, _stepEv = null, _stepping = false;
 
 function doStep() {
   if (!_stepping) {
-    // Initialise step mode on first click
     const src = document.getElementById('code').value.trim();
     if (!src) return;
     clearOutput();
@@ -289,14 +357,15 @@ function doStep() {
     catch (e) { showErrors([e], src); return; }
     const ast = new Parser(tokens).parse();
     if (ast.parseErrors.length) showErrors(ast.parseErrors, src);
-    _stepStmts = ast.stmts;
+    // Optimize the whole program before stepping
+    const optAst = new Optimizer().fold(ast);
+    _stepStmts = optAst.stmts;
     if (!_stepStmts.length) return;
     _stepIdx  = 0;
     _stepEv   = new Evaluator();
     _stepping = true;
     document.getElementById('resetStepBtn').disabled = false;
     _updateStep();
-    // Fall through to execute the first statement immediately
   }
 
   if (_stepIdx >= _stepStmts.length) { _updateStep(); return; }
@@ -369,7 +438,27 @@ document.getElementById('code').addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); run(); }
 });
 
+// ── DB: save program from UI ──────────────────────────────
+function dbSaveCurrent() {
+  const name = document.getElementById('progName').value;
+  const code = document.getElementById('code').value.trim();
+  if (!code) return;
+  dbSaveProgram(name, code);
+  document.getElementById('progName').value = '';
+}
+
+// allow Enter in the program-name field to save
+document.getElementById('progName')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); dbSaveCurrent(); }
+});
+
+// SQL console Enter = execute
+document.getElementById('sqlInput')?.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); dbExecuteQuery(); }
+});
+
 // ── Init ──────────────────────────────────────────────────
 document.getElementById('resetStepBtn').disabled = true;
+switchOpt('after');
 document.getElementById('code').value = EXAMPLES[0].code;
-run();
+dbInit().then(() => run()).catch(() => run());

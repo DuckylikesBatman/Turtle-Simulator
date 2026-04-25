@@ -6,31 +6,19 @@
 //
 //  Recursively walks the AST.  Every expression node is
 //  reduced to a number.  Side effects:
-//    • AssignNode  → stores result in this.env
+//    • AssignNode  → stores result in this.env, records in this.history
 //    • PrintNode   → appends formatted value to this.prints
+//    • IfNode      → evaluates body only when condition ≠ 0
 //
-//  Evaluation trace:
-//    Every meaningful computation step is recorded in
-//    this.trace as an indented string, mirroring the shape
-//    of the AST.  Clear between steps with clearTrace().
-//
-//  Multi-error collection:
-//    In Program eval, each statement is run inside try/catch.
-//    Runtime errors are pushed to this.errors instead of
-//    propagating, so ALL errors are reported in one pass.
-//
-//  Error messages (exact format):
-//    "Error {name} not declared."
-//    "Error cannot divide by 0."
-//    "Error cannot mod by 0."
-//    "Error {sym} is system symbol"  ← thrown by Parser
+//  Comparison operators (gt, lt, eq) return 1 (true) or 0 (false).
+//  pow uses Math.pow; sqrt/abs/floor/ceil use Math built-ins.
 // ─────────────────────────────────────────────────────────
 class Evaluator {
   constructor() {
-    this.env    = {};   // symbol table: varName → number
-    this.trace  = [];   // evaluation log lines
-    this.prints = [];   // output from print() statements
-    this.errors = [];   // runtime errors (all, not just first)
+    this.env     = {};   // symbol table: varName → number
+    this.trace   = [];   // evaluation log lines
+    this.prints  = [];   // output from print() statements
+    this.errors  = [];   // runtime errors (all, not just first)
   }
 
   _fmt(v) {
@@ -47,7 +35,6 @@ class Evaluator {
       // ── Leaf nodes ───────────────────────────────────────
 
       case 'Number':
-        // Logged by the parent (BinOp / Assign) when needed; no entry here.
         return node.value;
 
       case 'Ident': {
@@ -68,6 +55,20 @@ class Evaluator {
         return r;
       }
 
+      case 'Builtin': {
+        this._log(depth, `${node.fn}:`);
+        const v = this.eval(node.arg, depth + 1);
+        let r;
+        switch (node.fn) {
+          case 'sqrt':  r = Math.sqrt(v);  break;
+          case 'abs':   r = Math.abs(v);   break;
+          case 'floor': r = Math.floor(v); break;
+          case 'ceil':  r = Math.ceil(v);  break;
+        }
+        this._log(depth + 1, `→ ${node.fn}(${this._fmt(v)}) = ${this._fmt(r)}`);
+        return r;
+      }
+
       case 'BinOp': {
         this._log(depth, `${node.op}:`);
         const l = this.eval(node.left,  depth + 1);
@@ -76,6 +77,10 @@ class Evaluator {
         if (node.op === 'add')  result = l + r;
         if (node.op === 'sub')  result = l - r;
         if (node.op === 'mult') result = l * r;
+        if (node.op === 'pow')  result = Math.pow(l, r);
+        if (node.op === 'gt')   result = l > r   ? 1 : 0;
+        if (node.op === 'lt')   result = l < r   ? 1 : 0;
+        if (node.op === 'eq')   result = l === r ? 1 : 0;
         if (node.op === 'div') {
           if (r === 0) throw new InterpError('Error cannot divide by 0.', node.col);
           result = l / r;
@@ -94,7 +99,7 @@ class Evaluator {
       case 'Assign': {
         const isLiteral = node.expr.type === 'Number';
         if (!isLiteral) this._log(depth, `Assign ${node.name}:`);
-        const val = this.eval(node.expr, isLiteral ? depth : depth + 1);
+        const val    = this.eval(node.expr, isLiteral ? depth : depth + 1);
         this.env[node.name] = val;
         this._log(depth, `${node.name} = ${this._fmt(val)}`);
         return val;
@@ -106,6 +111,20 @@ class Evaluator {
         this.prints.push(this._fmt(val));
         this._log(depth + 1, `→ output: ${this._fmt(val)}`);
         return val;
+      }
+
+      case 'If': {
+        this._log(depth, `if:`);
+        const cond = this.eval(node.cond, depth + 1);
+        this._log(depth + 1,
+          `→ condition = ${this._fmt(cond)} (${cond !== 0 ? 'true' : 'false'})`);
+        if (cond !== 0) {
+          this._log(depth + 1, `→ entering body`);
+          for (const s of node.body) this.eval(s, depth + 2);
+        } else {
+          this._log(depth + 1, `→ skipping body`);
+        }
+        return 0;
       }
 
       // ── Program: run every statement, collect all errors ──

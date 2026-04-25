@@ -16,7 +16,9 @@
       <span class="arr">&#8594;</span>
       <span class="stage-pill s2">2 &nbsp;Syntactic Analysis</span>
       <span class="arr">&#8594;</span>
-      <span class="stage-pill s3">3 &nbsp;Evaluation</span>
+      <span class="stage-pill s3">3 &nbsp;Optimization</span>
+      <span class="arr">&#8594;</span>
+      <span class="stage-pill s4">4 &nbsp;Evaluation</span>
     </div>
   </header>
 
@@ -41,27 +43,36 @@
       <!-- Formal grammar reference -->
       <details class="grammar-box">
         <summary>Language grammar (EBNF)</summary>
-        <pre class="grammar">program   &#8594; statement* EOF
-statement &#8594; IDENT  '=' expr ';'
-          | 'print' '(' expr ')' ';'
-expr      &#8594; term   ( ('add' | 'sub')         term   )*
-term      &#8594; factor ( ('mult'| 'div' | 'mod') factor )*
-factor    &#8594; NUMBER | IDENT | '(' expr ')' | '-' factor
+        <pre class="grammar">program    &#8594; statement* EOF
+statement  &#8594; IDENT '=' expr ';'
+           | 'print' '(' expr ')' ';'
+           | 'if' '(' expr ')' '{' statement* '}'
+expr       &#8594; addExpr ( ('gt'|'lt'|'eq') addExpr )?
+addExpr    &#8594; term   ( ('add'|'sub')         term   )*
+term       &#8594; power  ( ('mult'|'div'|'mod')  power  )*
+power      &#8594; factor ( 'pow' factor )?
+factor     &#8594; NUMBER | IDENT | '(' expr ')' | '-' factor
+           | ('sqrt'|'abs'|'floor'|'ceil') '(' expr ')'
 
-System symbols (reserved): add  sub  mult  div  mod  print</pre>
+Arithmetic : add  sub  mult  div  mod  pow
+Comparisons: gt   lt   eq          (return 1=true, 0=false)
+Built-ins  : sqrt  abs  floor  ceil
+Control    : if
+Comments   : # text to end of line</pre>
       </details>
 
       <p class="hint">
         <kbd>Ctrl+Enter</kbd> to run &nbsp;|&nbsp;
-        Operators: <code>add</code> <code>sub</code> <code>mult</code>
-        <code>div</code> <code>mod</code> &nbsp;|&nbsp;
-        End each statement with <code>;</code>
+        Arithmetic: <code>add</code> <code>sub</code> <code>mult</code>
+        <code>div</code> <code>mod</code> <code>pow</code> &nbsp;|&nbsp;
+        Compare: <code>gt</code> <code>lt</code> <code>eq</code> &nbsp;|&nbsp;
+        Functions: <code>sqrt</code> <code>abs</code> <code>floor</code> <code>ceil</code>
       </p>
 
       <!-- Buttons -->
       <div class="btn-row">
         <button onclick="run()">&#9654; Run</button>
-        <button class="sec" id="stepBtn"     onclick="doStep()">&#9197; Step</button>
+        <button class="sec" id="stepBtn"      onclick="doStep()">&#9197; Step</button>
         <button class="sec" id="resetStepBtn" onclick="resetStep()">&#8635; Reset</button>
         <button class="sec" onclick="showTokens()">Tokens</button>
         <button class="sec" onclick="showAST()">AST</button>
@@ -100,7 +111,6 @@ System symbols (reserved): add  sub  mult  div  mod  print</pre>
               <span class="card-sub">— abstract syntax tree</span>
             </span>
           </div>
-          <!-- Text / Visual toggle -->
           <div class="ast-toggle">
             <button class="tog active" id="astTextBtn" onclick="switchAST('text')">Text</button>
             <button class="tog"        id="astTreeBtn" onclick="switchAST('tree')">Visual</button>
@@ -110,11 +120,30 @@ System symbols (reserved): add  sub  mult  div  mod  print</pre>
         <div id="astTreeOut" style="display:none;overflow-x:auto;"></div>
       </section>
 
-      <!-- Stage 3: Evaluation Trace -->
+      <!-- Stage 3: Optimizer -->
       <section class="card stage-card s3-card">
         <div class="card-head">
           <div class="stage-head">
             <span class="stage-badge s3">3</span>
+            <span class="card-title">Optimization
+              <span class="card-sub">— constant folding</span>
+            </span>
+          </div>
+          <div class="ast-toggle">
+            <button class="tog"        id="optBeforeBtn" onclick="switchOpt('before')">Before</button>
+            <button class="tog active" id="optAfterBtn"  onclick="switchOpt('after')">After</button>
+          </div>
+        </div>
+        <div id="optSummary" class="opt-summary"></div>
+        <pre id="optBefore" style="display:none;"><em class="muted">Run to see pre-optimization AST</em></pre>
+        <pre id="optAfter"><em class="muted">Run to see optimized AST</em></pre>
+      </section>
+
+      <!-- Stage 4: Evaluation Trace -->
+      <section class="card stage-card s4-card">
+        <div class="card-head">
+          <div class="stage-head">
+            <span class="stage-badge s4">4</span>
             <span class="card-title">Evaluation Trace
               <span class="card-sub">— tree-walking execution</span>
             </span>
@@ -146,11 +175,83 @@ System symbols (reserved): add  sub  mult  div  mod  print</pre>
     </div><!-- /output-col -->
   </div><!-- /main -->
 
+  <!-- ═══ DATABASE PANEL (full-width) ══════════════════════ -->
+  <section class="card db-panel" id="db-section">
+    <div class="card-head">
+      <span class="card-title">Database
+        <span class="card-sub">— sql.js &nbsp;(SQLite in the browser)</span>
+      </span>
+      <span id="dbStatus" class="db-status-msg"></span>
+    </div>
+
+    <div class="db-grid">
+
+      <!-- Saved Programs -->
+      <div class="db-col">
+        <div class="db-col-head">
+          <span class="db-col-title">Saved Programs</span>
+          <div class="db-save-row">
+            <input id="progName" class="db-input" type="text"
+                   placeholder="program name" maxlength="40" />
+            <button class="db-btn db-btn-save" onclick="dbSaveCurrent()">Save</button>
+          </div>
+        </div>
+        <div id="savedPrograms"><em class="muted">No saved programs yet.</em></div>
+      </div>
+
+      <!-- Run History -->
+      <div class="db-col">
+        <div class="db-col-head">
+          <span class="db-col-title">Run History
+            <span class="card-sub">— last 20 executions</span>
+          </span>
+        </div>
+        <div id="runHistory"><em class="muted">No runs logged yet.</em></div>
+      </div>
+
+      <!-- SQL Console -->
+      <div class="db-col db-col-wide">
+        <div class="db-col-head">
+          <span class="db-col-title">SQL Console</span>
+          <span class="db-hint"><kbd>Ctrl+Enter</kbd> to run</span>
+        </div>
+        <div class="db-query-row">
+          <textarea id="sqlInput" class="db-sql-input" spellcheck="false"
+            placeholder="SELECT * FROM runs ORDER BY ran_at DESC;"></textarea>
+          <button class="db-btn db-btn-exec" onclick="dbExecuteQuery()">&#9654; Execute</button>
+        </div>
+        <div id="sqlResults" class="db-results"><em class="muted">Results will appear here.</em></div>
+      </div>
+
+    </div><!-- /db-grid -->
+
+    <!-- Schema reference -->
+    <details class="grammar-box" style="margin-top:10px;">
+      <summary>Database schema</summary>
+      <pre class="grammar">TABLE programs
+  id        INTEGER  PRIMARY KEY AUTOINCREMENT
+  name      TEXT     UNIQUE
+  code      TEXT
+  saved_at  TEXT     datetime('now')
+
+TABLE runs
+  id         INTEGER  PRIMARY KEY AUTOINCREMENT
+  code       TEXT
+  var_count  INTEGER  number of variables assigned
+  had_errors INTEGER  1 = had errors, 0 = clean run
+  ran_at     TEXT     datetime('now')</pre>
+    </details>
+
+  </section>
+
 </div><!-- /app -->
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/sql-wasm.js"></script>
 <script src="js/lexer.js"></script>
 <script src="js/parser.js"></script>
 <script src="js/evaluator.js"></script>
+<script src="js/optimizer.js"></script>
+<script src="js/database.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

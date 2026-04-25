@@ -8,16 +8,25 @@ const TT = Object.freeze({
   MULT:    'MULT',
   DIV:     'DIV',
   MOD:     'MOD',
+  POW:     'POW',
+  SQRT:    'SQRT',
+  ABS:     'ABS',
+  FLOOR:   'FLOOR',
+  CEIL:    'CEIL',
+  GT:      'GT',
+  LT:      'LT',
+  EQOP:    'EQOP',
+  IF:      'IF',
   PRINT:   'PRINT',
   EQUALS:  'EQUALS',
   SEMI:    'SEMI',
   LPAREN:  'LPAREN',
   RPAREN:  'RPAREN',
+  LBRACE:  'LBRACE',
+  RBRACE:  'RBRACE',
   EOF:     'EOF',
 });
 
-// Custom error that carries the character offset where the problem occurred.
-// Used by the lexer, parser, and evaluator to power the source pointer display.
 class InterpError extends Error {
   constructor(message, col) {
     super(message);
@@ -29,21 +38,11 @@ class Token {
   constructor(type, value, col = 0) {
     this.type  = type;
     this.value = value;
-    this.col   = col;   // character offset in the source string
+    this.col   = col;
   }
   toString() { return `Token(${this.type}, ${JSON.stringify(this.value)})`; }
 }
 
-// ─────────────────────────────────────────────────────────
-//  Lexer  –  Lexical Analysis
-//  Reads source text one character at a time and emits
-//  a flat array of Token objects.
-//
-//  Keyword operators (case-insensitive):
-//    add  sub  mult  div  mod
-//  Reserved keyword:
-//    print
-// ─────────────────────────────────────────────────────────
 class Lexer {
   constructor(src) { this.src = src; this.pos = 0; }
 
@@ -51,8 +50,16 @@ class Lexer {
   advance() { this.pos++; }
 
   skipWS() {
-    while (this.ch === ' ' || this.ch === '\t' || this.ch === '\r' || this.ch === '\n')
-      this.advance();
+    while (true) {
+      if (this.ch === ' ' || this.ch === '\t' || this.ch === '\r' || this.ch === '\n') {
+        this.advance();
+      } else if (this.ch === '#') {
+        // comment: skip to end of line
+        while (this.ch !== null && this.ch !== '\n') this.advance();
+      } else {
+        break;
+      }
+    }
   }
 
   readNumber() {
@@ -74,7 +81,12 @@ class Lexer {
     const keywords = {
       add:   TT.ADD,   sub:   TT.SUB,
       mult:  TT.MULT,  div:   TT.DIV,
-      mod:   TT.MOD,   print: TT.PRINT,
+      mod:   TT.MOD,   pow:   TT.POW,
+      sqrt:  TT.SQRT,  abs:   TT.ABS,
+      floor: TT.FLOOR, ceil:  TT.CEIL,
+      gt:    TT.GT,    lt:    TT.LT,
+      eq:    TT.EQOP,  if:    TT.IF,
+      print: TT.PRINT,
     };
     if (lower in keywords) return new Token(keywords[lower], lower, col);
     return new Token(TT.IDENT, s, col);
@@ -92,6 +104,8 @@ class Lexer {
       else if (c === ';') { tokens.push(new Token(TT.SEMI,   ';', col)); this.advance(); }
       else if (c === '(') { tokens.push(new Token(TT.LPAREN, '(', col)); this.advance(); }
       else if (c === ')') { tokens.push(new Token(TT.RPAREN, ')', col)); this.advance(); }
+      else if (c === '{') { tokens.push(new Token(TT.LBRACE, '{', col)); this.advance(); }
+      else if (c === '}') { tokens.push(new Token(TT.RBRACE, '}', col)); this.advance(); }
       else throw new InterpError(`Unexpected character '${c}'`, col);
     }
     tokens.push(new Token(TT.EOF, null, this.pos));

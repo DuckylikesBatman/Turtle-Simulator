@@ -2,34 +2,36 @@
 // Depends on: TT, InterpError  (lexer.js)
 
 // ── AST Node classes ──────────────────────────────────────
-// Each node stores col (source offset) so errors can point at the right place.
-class NumberNode  { constructor(v,col=0)     { this.type='Number'; this.value=v;   this.col=col; } }
-class IdentNode   { constructor(n,col=0)     { this.type='Ident';  this.name=n;    this.col=col; } }
-class UnaryNode   { constructor(op,e,col=0)  { this.type='Unary';  this.op=op;     this.operand=e; this.col=col; } }
-class BinOpNode   { constructor(l,op,r,col=0){ this.type='BinOp';  this.left=l;    this.op=op; this.right=r; this.col=col; } }
-class AssignNode  { constructor(nm,e,col=0)  { this.type='Assign'; this.name=nm;   this.expr=e;  this.col=col; } }
-class PrintNode   { constructor(e,col=0)     { this.type='Print';  this.expr=e;    this.col=col; } }
-class ProgramNode { constructor(stmts)       { this.type='Program'; this.stmts=stmts; this.parseErrors=[]; } }
+class NumberNode  { constructor(v,col=0)      { this.type='Number';  this.value=v;  this.col=col; } }
+class IdentNode   { constructor(n,col=0)      { this.type='Ident';   this.name=n;   this.col=col; } }
+class UnaryNode   { constructor(op,e,col=0)   { this.type='Unary';   this.op=op;    this.operand=e; this.col=col; } }
+class BinOpNode   { constructor(l,op,r,col=0) { this.type='BinOp';   this.left=l;   this.op=op; this.right=r; this.col=col; } }
+class BuiltinNode { constructor(fn,a,col=0)   { this.type='Builtin'; this.fn=fn;    this.arg=a;    this.col=col; } }
+class AssignNode  { constructor(nm,e,col=0)   { this.type='Assign';  this.name=nm;  this.expr=e;   this.col=col; } }
+class PrintNode   { constructor(e,col=0)      { this.type='Print';   this.expr=e;   this.col=col; } }
+class IfNode      { constructor(c,b,col=0)    { this.type='If';      this.cond=c;   this.body=b;   this.col=col; } }
+class ProgramNode { constructor(stmts)        { this.type='Program'; this.stmts=stmts; this.parseErrors=[]; } }
 
 // ─────────────────────────────────────────────────────────
 //  Parser  –  Syntactic Analysis
 //
 //  Grammar (EBNF):
-//    program   → statement* EOF
-//    statement → IDENT  '=' expr ';'
-//              | 'print' '(' expr ')' ';'
-//    expr      → term   ( ('add' | 'sub') term   )*
-//    term      → factor ( ('mult'| 'div' | 'mod') factor )*
-//    factor    → NUMBER | IDENT | '(' expr ')' | '-' factor
+//    program    → statement* EOF
+//    statement  → IDENT '=' expr ';'
+//               | 'print' '(' expr ')' ';'
+//               | 'if' '(' expr ')' '{' statement* '}'
+//    expr       → addExpr ( ('gt'|'lt'|'eq') addExpr )?
+//    addExpr    → term   ( ('add'|'sub') term )*
+//    term       → power  ( ('mult'|'div'|'mod') power )*
+//    power      → factor ( 'pow' factor )?
+//    factor     → NUMBER | IDENT | '(' expr ')' | '-' factor
+//               | ('sqrt'|'abs'|'floor'|'ceil') '(' expr ')'
 //
-//  Error recovery:
-//    On a syntax error in any statement, the parser records
-//    the error and skips tokens until the next ';', then
-//    continues with the following statement (synchronization).
-//    This allows multiple errors to be reported in one pass.
+//  System keywords (reserved): add sub mult div mod pow
+//                               sqrt abs floor ceil gt lt eq if print
 // ─────────────────────────────────────────────────────────
 class Parser {
-  constructor(tokens) { this.tokens = tokens; this.pos = 0; }
+  constructor(tokens) { this.tokens = tokens; this.pos = 0; this._errors = []; }
 
   get cur() { return this.tokens[this.pos]; }
 
@@ -41,7 +43,7 @@ class Parser {
     return t;
   }
 
-  // factor → NUMBER | IDENT | '(' expr ')' | '-' factor
+  // factor → NUMBER | IDENT | '(' expr ')' | '-' factor | builtin '(' expr ')'
   factor() {
     const t = this.cur;
     if (t.type === TT.NUMBER) { this.consume(); return new NumberNode(t.value, t.col); }
@@ -56,22 +58,39 @@ class Parser {
       const col = t.col; this.consume();
       return new UnaryNode('-', this.factor(), col);
     }
+    if ([TT.SQRT, TT.ABS, TT.FLOOR, TT.CEIL].includes(t.type)) {
+      const col = t.col; this.consume();
+      this.consume(TT.LPAREN);
+      const arg = this.expr();
+      this.consume(TT.RPAREN);
+      return new BuiltinNode(t.value, arg, col);
+    }
     throw new InterpError(
       `Expected number, variable, or '(' — got '${t.value || t.type}'`, t.col);
   }
 
-  // term → factor ( ('mult' | 'div' | 'mod') factor )*
-  term() {
+  // power → factor ('pow' factor)?
+  power() {
     let n = this.factor();
-    while ([TT.MULT, TT.DIV, TT.MOD].includes(this.cur.type)) {
+    if (this.cur.type === TT.POW) {
       const op = this.consume();
       n = new BinOpNode(n, op.value, this.factor(), op.col);
     }
     return n;
   }
 
-  // expr → term ( ('add' | 'sub') term )*
-  expr() {
+  // term → power ( ('mult'|'div'|'mod') power )*
+  term() {
+    let n = this.power();
+    while ([TT.MULT, TT.DIV, TT.MOD].includes(this.cur.type)) {
+      const op = this.consume();
+      n = new BinOpNode(n, op.value, this.power(), op.col);
+    }
+    return n;
+  }
+
+  // addExpr → term ( ('add'|'sub') term )*
+  addExpr() {
     let n = this.term();
     while (this.cur.type === TT.ADD || this.cur.type === TT.SUB) {
       const op = this.consume();
@@ -80,13 +99,43 @@ class Parser {
     return n;
   }
 
-  // statement → IDENT '=' expr ';'  |  'print' '(' expr ')' ';'
+  // expr → addExpr ( ('gt'|'lt'|'eq') addExpr )?
+  expr() {
+    let n = this.addExpr();
+    if ([TT.GT, TT.LT, TT.EQOP].includes(this.cur.type)) {
+      const op = this.consume();
+      n = new BinOpNode(n, op.value, this.addExpr(), op.col);
+    }
+    return n;
+  }
+
+  // statement → IDENT '=' expr ';'  |  print(expr);  |  if(expr){ stmts }
   statement() {
     const t = this.cur;
 
+    // if (expr) { stmts }
+    if (t.type === TT.IF) {
+      this.consume();
+      this.consume(TT.LPAREN);
+      const cond = this.expr();
+      this.consume(TT.RPAREN);
+      this.consume(TT.LBRACE);
+      const body = [];
+      while (this.cur.type !== TT.RBRACE && this.cur.type !== TT.EOF) {
+        try {
+          body.push(this.statement());
+        } catch (e) {
+          this._errors.push(e);
+          while (![TT.SEMI, TT.RBRACE, TT.EOF].includes(this.cur.type)) this.consume();
+          if (this.cur.type === TT.SEMI) this.consume();
+        }
+      }
+      this.consume(TT.RBRACE);
+      return new IfNode(cond, body, t.col);
+    }
+
     // print(expr);
     if (t.type === TT.PRINT) {
-      // Catch: print = 5; (used as variable name)
       if (this.tokens[this.pos + 1]?.type === TT.EQUALS)
         throw new InterpError(`Error print is system symbol`, t.col);
       this.consume();
@@ -98,7 +147,9 @@ class Parser {
     }
 
     // Reject operator keywords in variable-name position
-    if ([TT.ADD, TT.SUB, TT.MULT, TT.DIV, TT.MOD].includes(t.type))
+    const SYS = [TT.ADD, TT.SUB, TT.MULT, TT.DIV, TT.MOD, TT.POW,
+                 TT.SQRT, TT.ABS, TT.FLOOR, TT.CEIL, TT.GT, TT.LT, TT.EQOP];
+    if (SYS.includes(t.type))
       throw new InterpError(`Error ${t.value} is system symbol`, t.col);
 
     // IDENT = expr ;
@@ -109,7 +160,6 @@ class Parser {
     return new AssignNode(nm.value, e, nm.col);
   }
 
-  // Error-recovering parse: collects all errors, skips to next ';' on failure.
   parse() {
     const stmts = [], errors = [];
     while (this.cur.type !== TT.EOF) {
@@ -117,14 +167,13 @@ class Parser {
         stmts.push(this.statement());
       } catch (e) {
         errors.push(e);
-        // Synchronize: advance to the next statement boundary
         while (this.cur.type !== TT.SEMI && this.cur.type !== TT.EOF)
           this.consume();
         if (this.cur.type === TT.SEMI) this.consume();
       }
     }
     const prog = new ProgramNode(stmts);
-    prog.parseErrors = errors;
+    prog.parseErrors = [...errors, ...this._errors];
     return prog;
   }
 }
@@ -134,17 +183,19 @@ function nodeToSrc(node) {
   switch (node.type) {
     case 'Assign': return `${node.name} = ${exprToSrc(node.expr)};`;
     case 'Print':  return `print(${exprToSrc(node.expr)});`;
+    case 'If':     return `if(${exprToSrc(node.cond)}){${node.body.map(nodeToSrc).join(' ')}}`;
     default:       return exprToSrc(node);
   }
 }
 
 function exprToSrc(node) {
   switch (node.type) {
-    case 'Number': return String(node.value);
-    case 'Ident':  return node.name;
-    case 'Unary':  return `-(${exprToSrc(node.operand)})`;
-    case 'BinOp':  return `(${exprToSrc(node.left)} ${node.op} ${exprToSrc(node.right)})`;
-    default:       return '?';
+    case 'Number':  return String(node.value);
+    case 'Ident':   return node.name;
+    case 'Unary':   return `-(${exprToSrc(node.operand)})`;
+    case 'BinOp':   return `(${exprToSrc(node.left)} ${node.op} ${exprToSrc(node.right)})`;
+    case 'Builtin': return `${node.fn}(${exprToSrc(node.arg)})`;
+    default:        return '?';
   }
 }
 
@@ -164,6 +215,10 @@ function prettyAST(node, depth = 0) {
       return `Print\n${p}  └ ${prettyAST(node.expr, depth+1)}`;
     case 'BinOp':
       return `BinOp(${node.op})\n${p}  ├ ${prettyAST(node.left,depth+1)}\n${p}  └ ${prettyAST(node.right,depth+1)}`;
+    case 'Builtin':
+      return `Builtin(${node.fn})\n${p}  └ ${prettyAST(node.arg, depth+1)}`;
+    case 'If':
+      return `If\n${p}  ├ cond: ${prettyAST(node.cond,depth+1)}\n${p}  └ body[\n${node.body.map(s=>p+'    '+prettyAST(s,depth+2)).join('\n')}\n${p}  ]`;
     default: return JSON.stringify(node);
   }
 }
