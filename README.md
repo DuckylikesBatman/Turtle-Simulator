@@ -8,14 +8,13 @@ Open `index.html` in any modern browser — no build step or server required.
 
 ## Pipeline Stages
 
-The app processes each program through four stages, displaying the output of each:
+The app processes each program through three stages, displaying the output of each:
 
 | Stage | Component | Description |
 |-------|-----------|-------------|
 | 1 | **Lexer** | Converts source text into a token stream |
 | 2 | **Parser** | Builds an Abstract Syntax Tree (AST) from the tokens |
-| 3 | **Optimizer** | Applies constant folding to pre-compute literal expressions |
-| 4 | **Evaluator** | Tree-walks the AST to produce results and a trace |
+| 3 | **Evaluator** | Tree-walks the AST to produce results and a trace |
 
 ## Language Reference
 
@@ -113,7 +112,6 @@ if (a gt b) {
 - **Step mode** — execute one statement at a time using the Step button
 - **Token view** — inspect the raw token stream from the lexer
 - **AST view** — toggle between text and visual tree representations
-- **Optimizer diff** — compare the AST before and after constant folding
 - **Evaluation trace** — see every reduction step during tree-walking
 - **Symbol table** — live view of all assigned variables
 - **Database** — programs and run history are persisted via SQLite (sql.js) in the browser, with a built-in SQL console
@@ -126,8 +124,7 @@ style.css           — Styles
 js/
   lexer.js          — Tokenizer (Stage 1)
   parser.js         — Parser and AST node definitions (Stage 2)
-  optimizer.js      — Constant folding optimizer (Stage 3)
-  evaluator.js      — Tree-walking evaluator (Stage 4)
+  evaluator.js      — Tree-walking evaluator (Stage 3)
   database.js       — sql.js database integration
   main.js           — UI wiring and run/step logic
 ```

@@ -1,5 +1,5 @@
 "use strict";
-// Depends on: lexer.js, parser.js, evaluator.js, optimizer.js
+// Depends on: lexer.js, parser.js, evaluator.js
 
 // ── Examples ──────────────────────────────────────────────
 const EXAMPLES = [
@@ -25,8 +25,6 @@ const EXAMPLES = [
     code:  'score=85;\nif (score gt 59) {\n  print(score);\n  grade= score div 10;\n}' },
   { label: 'Comments (#)',
     code:  '# compute area of a circle\npi=3.14159; r=6;\narea= pi mult (r mult r); # pi*r^2\nprint(area);' },
-  { label: 'Constant folding demo',
-    code:  '# these sub-expressions are all literals — the optimizer pre-computes them\na= (3 add 4) mult 2;   # optimizer: (3+4)=7 then 7*2=14\nb= sqrt(9) add 1;      # optimizer: sqrt(9)=3 then 3+1=4\nc= 2 pow 8;            # optimizer: 256' },
   { label: 'Error: variable not declared',
     code:  'aa=4; b=5; da=3; ans= bb div aa;' },
   { label: 'Error: divide by zero',
@@ -112,28 +110,6 @@ function showPrints(prints) {
     prints.map(v => `<div class="print-line">&gt;&nbsp;${escHtml(v)}</div>`).join('');
 }
 
-function showOptimizer(original, optimized, foldCount) {
-  const summary    = document.getElementById('optSummary');
-  const beforeEl   = document.getElementById('optBefore');
-  const afterEl    = document.getElementById('optAfter');
-  const beforeBtn  = document.getElementById('optBeforeBtn');
-  const afterBtn   = document.getElementById('optAfterBtn');
-
-  if (foldCount === 0) {
-    summary.textContent     = 'No constant sub-expressions found — AST unchanged.';
-    beforeEl.style.display  = 'none';
-    afterEl.style.display   = 'none';
-    beforeBtn.style.display = 'none';
-    afterBtn.style.display  = 'none';
-  } else {
-    summary.textContent     = `${foldCount} constant sub-expression${foldCount > 1 ? 's' : ''} folded.`;
-    beforeBtn.style.display = '';
-    afterBtn.style.display  = '';
-    beforeEl.textContent    = prettyAST(original);
-    afterEl.textContent     = prettyAST(optimized);
-    switchOpt(_optMode);
-  }
-}
 
 function clearOutput() {
   document.getElementById('errOut').innerHTML      = '';
@@ -145,16 +121,6 @@ function clearOutput() {
   document.getElementById('astTreeOut').innerHTML  = '';
   document.getElementById('traceOut').textContent  = '';
   document.getElementById('varsOut').innerHTML      = '<em class="muted">No variables</em>';
-  document.getElementById('optSummary').textContent = '';
-  document.getElementById('optBefore').textContent   = '';
-  document.getElementById('optAfter').textContent    = '';
-  document.getElementById('optBefore').style.display  = 'none';
-  document.getElementById('optAfter').style.display   = 'none';
-  document.getElementById('optBeforeBtn').style.display = '';
-  document.getElementById('optAfterBtn').style.display  = '';
-  document.getElementById('optBeforeBtn').classList.remove('active');
-  document.getElementById('optAfterBtn').classList.add('active');
-  _optMode = 'after';
   document.getElementById('stmtLabel').textContent  = '';
 }
 
@@ -272,16 +238,6 @@ function _displayAST(ast) {
     document.getElementById('astTreeOut').innerHTML = buildASTSVG(ast);
 }
 
-// ── Optimizer view toggle (before ↔ after) ────────────────
-let _optMode = 'after';
-function switchOpt(mode) {
-  _optMode = mode;
-  document.getElementById('optBeforeBtn').classList.toggle('active', mode === 'before');
-  document.getElementById('optAfterBtn').classList.toggle('active',  mode === 'after');
-  document.getElementById('optBefore').style.display = mode === 'before' ? '' : 'none';
-  document.getElementById('optAfter').style.display  = mode === 'after'  ? '' : 'none';
-}
-
 // ═════════════════════════════════════════════════════════
 //  RUN MODE  –  execute everything at once
 // ═════════════════════════════════════════════════════════
@@ -301,14 +257,9 @@ function run() {
   const ast = new Parser(tokens).parse();
   _displayAST(ast);
 
-  // Stage 3: Optimize
-  const opt    = new Optimizer();
-  const optAst = opt.fold(ast);
-  showOptimizer(ast, optAst, opt.foldCount);
-
-  // Stage 4: Evaluate optimized AST
+  // Stage 3: Evaluate
   const ev = new Evaluator();
-  ev.eval(optAst);
+  ev.eval(ast);
 
   const allErrors = [...ast.parseErrors, ...ev.errors];
   document.getElementById('traceOut').textContent = ev.trace.join('\n');
@@ -335,9 +286,6 @@ function showAST() {
     const tokens = new Lexer(src).tokenize();
     const ast    = new Parser(tokens).parse();
     _displayAST(ast);
-    const opt    = new Optimizer();
-    const optAst = opt.fold(ast);
-    showOptimizer(ast, optAst, opt.foldCount);
     if (ast.parseErrors.length) showErrors(ast.parseErrors, src);
   } catch (e) { showErrors([e], src); }
 }
@@ -357,9 +305,7 @@ function doStep() {
     catch (e) { showErrors([e], src); return; }
     const ast = new Parser(tokens).parse();
     if (ast.parseErrors.length) showErrors(ast.parseErrors, src);
-    // Optimize the whole program before stepping
-    const optAst = new Optimizer().fold(ast);
-    _stepStmts = optAst.stmts;
+    _stepStmts = ast.stmts;
     if (!_stepStmts.length) return;
     _stepIdx  = 0;
     _stepEv   = new Evaluator();
@@ -459,6 +405,5 @@ document.getElementById('sqlInput')?.addEventListener('keydown', e => {
 
 // ── Init ──────────────────────────────────────────────────
 document.getElementById('resetStepBtn').disabled = true;
-switchOpt('after');
 document.getElementById('code').value = EXAMPLES[0].code;
 dbInit().then(() => run()).catch(() => run());

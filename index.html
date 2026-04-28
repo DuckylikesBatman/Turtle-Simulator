@@ -16,9 +16,7 @@
       <span class="arr">&#8594;</span>
       <span class="stage-pill s2">2 &nbsp;Syntactic Analysis</span>
       <span class="arr">&#8594;</span>
-      <span class="stage-pill s3">3 &nbsp;Optimization</span>
-      <span class="arr">&#8594;</span>
-      <span class="stage-pill s4">4 &nbsp;Evaluation</span>
+      <span class="stage-pill s3">3 &nbsp;Evaluation</span>
     </div>
   </header>
 
@@ -120,30 +118,11 @@ Comments   : # text to end of line</pre>
         <div id="astTreeOut" style="display:none;overflow-x:auto;"></div>
       </section>
 
-      <!-- Stage 3: Optimizer -->
+      <!-- Stage 3: Evaluation Trace -->
       <section class="card stage-card s3-card">
         <div class="card-head">
           <div class="stage-head">
             <span class="stage-badge s3">3</span>
-            <span class="card-title">Optimization
-              <span class="card-sub">— constant folding</span>
-            </span>
-          </div>
-          <div class="ast-toggle">
-            <button class="tog"        id="optBeforeBtn" onclick="switchOpt('before')">Before</button>
-            <button class="tog active" id="optAfterBtn"  onclick="switchOpt('after')">After</button>
-          </div>
-        </div>
-        <div id="optSummary" class="opt-summary"></div>
-        <pre id="optBefore" style="display:none;"><em class="muted">Run to see pre-optimization AST</em></pre>
-        <pre id="optAfter"><em class="muted">Run to see optimized AST</em></pre>
-      </section>
-
-      <!-- Stage 4: Evaluation Trace -->
-      <section class="card stage-card s4-card">
-        <div class="card-head">
-          <div class="stage-head">
-            <span class="stage-badge s4">4</span>
             <span class="card-title">Evaluation Trace
               <span class="card-sub">— tree-walking execution</span>
             </span>
@@ -250,7 +229,6 @@ TABLE runs
 <script src="js/lexer.js"></script>
 <script src="js/parser.js"></script>
 <script src="js/evaluator.js"></script>
-<script src="js/optimizer.js"></script>
 <script src="js/database.js"></script>
 <script src="js/main.js"></script>
 </body>
