@@ -370,6 +370,7 @@ let _stepStmts = []; // the list of top-level statements (from the parse)
 let _stepIdx   = 0;  // index of the next statement to execute
 let _stepEv    = null; // the persistent Evaluator (env carries over between steps)
 let _stepping  = false; // whether step mode is currently active
+let _stepAST   = null; // full ProgramNode — Visual tab always shows the complete tree
 
 // doStep — called by the "Step" button
 // First call: parses the program and initializes step mode
@@ -387,6 +388,7 @@ function doStep() {
     if (ast.parseErrors.length) showErrors(ast.parseErrors, src);
     _stepStmts = ast.stmts;
     if (!_stepStmts.length) return;
+    _stepAST  = ast;  // store the full tree so Visual always shows all statements
     _stepIdx  = 0;
     _stepEv   = new Evaluator(); // shared across all steps so env persists
     _stepping = true;
@@ -401,9 +403,15 @@ function doStep() {
   const stmtSrc = nodeToSrc(stmt); // convert the single AST node back to source text
 
   try {
-    // Show tokens and AST for just this one statement
+    // Tokens: show only the current statement's tokens
     renderTokens(new Lexer(stmtSrc).tokenize().filter(t => t.type !== TT.EOF));
+    // Text AST: shows only the current statement for focused step-by-step reading
+    // Visual AST: always shows the full program tree
     _displayAST(stmt);
+    if (_astMode === 'tree' && _stepAST) {
+      document.getElementById('astTreeOut').innerHTML = buildASTSVG(_stepAST);
+      _lastAST = _stepAST;
+    }
     // Execute only this statement (trace and prints reset each step)
     _stepEv.clearTrace();
     _stepEv.prints = [];
@@ -425,7 +433,7 @@ function resetStep() { _exitStep(); clearOutput(); }
 
 // _exitStep — internal: resets all step-mode state variables
 function _exitStep() {
-  _stepping = false; _stepStmts = []; _stepIdx = 0; _stepEv = null;
+  _stepping = false; _stepStmts = []; _stepIdx = 0; _stepEv = null; _stepAST = null;
   _updateStep();
 }
 
